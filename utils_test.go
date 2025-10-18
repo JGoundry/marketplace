@@ -57,3 +57,10 @@ func TestConvertMoneyPrintable(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerateToken(t *testing.T) {
+	_, err := generateToken(TokenLength)
+	if err != nil {
+		t.FailNow()
+	}
+}
