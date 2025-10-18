@@ -142,7 +142,7 @@ func (s *SqlDB) Items() ([]Item, error) {
 }
 
 func (s *SqlDB) Purchases(userId int) ([]UserPurchase, error) {
-	query := `SELECT users.username, items.name, CAST(items.price*100 AS INT), purchases.purchased_at
+	query := `SELECT users.username, items.name, CAST(purchases.price*100 AS INT), purchases.purchased_at
 			  FROM users
 			  JOIN purchases ON users.user_id=purchases.user_id
 			  JOIN items ON purchases.item_id=items.item_id
@@ -317,7 +317,7 @@ func (s *SqlDB) Purchase(userId int, itemId int) (err error) {
 	}
 
 	// Create purchase
-	addPurchaseQuery := `INSERT INTO purchases (user_id, item_id) VALUES ($1, $2)`
-	_, err = tx.Exec(addPurchaseQuery, userId, itemId)
+	addPurchaseQuery := `INSERT INTO purchases (user_id, item_id, price) VALUES ($1, $2, CAST($3 AS NUMERIC(10, 2))/100)`
+	_, err = tx.Exec(addPurchaseQuery, userId, itemId, price)
 	return err
 }

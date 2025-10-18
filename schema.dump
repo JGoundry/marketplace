@@ -64,6 +64,7 @@ CREATE TABLE public.purchases (
     purchase_id integer NOT NULL,
     user_id integer NOT NULL,
     item_id integer NOT NULL,
+    price numeric(10,2) NOT NULL,
     purchased_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -211,7 +212,7 @@ ALTER TABLE ONLY public.users
 --
 
 ALTER TABLE ONLY public.purchases
-    ADD CONSTRAINT purchases_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(item_id) ON UPDATE CASCADE;
+    ADD CONSTRAINT purchases_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.items(item_id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
