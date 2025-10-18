@@ -16,6 +16,7 @@ func FuzzPasswordHashing(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, password string) {
+		t.Parallel()
 		if len(password) > 72 {
 			password = password[:72]
 		}
@@ -43,11 +44,15 @@ var testConvertMoneyPrintableTable = map[string]struct {
 }
 
 func TestConvertMoneyPrintable(t *testing.T) {
+	t.Parallel()
 	for name, args := range testConvertMoneyPrintableTable {
+		input := args.input
+		expected := args.expected
 		t.Run(name, func(t *testing.T) {
-			answer := convertMoneyPrintable(args.input)
-			if answer != args.expected {
-				t.Errorf("input %v, got %v, expected %v", args.input, answer, args.expected)
+			t.Parallel()
+			answer := convertMoneyPrintable(input)
+			if answer != expected {
+				t.Errorf("input %v, got %v, expected %v", input, answer, expected)
 			}
 		})
 	}
