@@ -353,7 +353,6 @@ func TestRegister(t *testing.T) {
 	env := NewTestEnv()
 
 	t.Run("RegisterNoBasicAuth", func(t *testing.T) {
-		t.Parallel()
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest("POST", "/api/register", nil)
 		env.Register(recorder, request)
@@ -364,7 +363,6 @@ func TestRegister(t *testing.T) {
 	})
 
 	t.Run("RegisterExistingUsername", func(t *testing.T) {
-		t.Parallel()
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest("POST", "/api/register", nil)
 		request.SetBasicAuth("test_user", "password")
@@ -376,7 +374,6 @@ func TestRegister(t *testing.T) {
 	})
 
 	t.Run("RegisterValidUser", func(t *testing.T) {
-		t.Parallel()
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest("POST", "/api/register", nil)
 		request.SetBasicAuth("valid_user", "password")
