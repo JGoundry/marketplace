@@ -4,10 +4,16 @@ import (
 	"testing"
 )
 
+var passwordSeeds []string = []string{
+	"",
+	"hello",
+	"你好",
+}
+
 func FuzzPasswordHashing(f *testing.F) {
-	f.Add("")
-	f.Add("hello")
-	f.Add("你好")
+	for _, seed := range passwordSeeds {
+		f.Add(seed)
+	}
 
 	f.Fuzz(func(t *testing.T, password string) {
 		if len(password) > 72 {
@@ -22,15 +28,27 @@ func FuzzPasswordHashing(f *testing.F) {
 	})
 }
 
-func TestConvertMoneyPrintable(t *testing.T) {
-	inputToAnswer := map[int]float64{
-		137: 1.37,
-		100: 1,
-	}
+var testConvertMoneyPrintableTable = map[string]struct {
+	input    int
+	expected float64
+}{
+	"decimal": {
+		input:    137,
+		expected: 1.37,
+	},
+	"integer": {
+		input:    100,
+		expected: 1,
+	},
+}
 
-	for input, answer := range inputToAnswer {
-		if convertMoneyPrintable(input) != answer {
-			t.FailNow()
-		}
+func TestConvertMoneyPrintable(t *testing.T) {
+	for name, args := range testConvertMoneyPrintableTable {
+		t.Run(name, func(t *testing.T) {
+			answer := convertMoneyPrintable(args.input)
+			if answer != args.expected {
+				t.Errorf("input %v, got %v, expected %v", args.input, answer, args.expected)
+			}
+		})
 	}
 }
