@@ -1,22 +1,36 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
-var passwords []string = []string{"password", "thispassword", "verysecure"}
+func FuzzPasswordHashing(f *testing.F) {
+	f.Add("")
+	f.Add("hello")
+	f.Add("你好")
 
-func TestPasswordHashing(t *testing.T) {
-	for _, password := range passwords {
+	f.Fuzz(func(t *testing.T, password string) {
+		if len(password) > 72 {
+			password = password[:72]
+		}
 		hashedPassword, err := hashPassword(password)
 		if err != nil ||
 			!checkPasswordHash(password, hashedPassword) ||
 			checkPasswordHash(password, password) {
 			t.FailNow()
 		}
-	}
+	})
 }
 
 func TestConvertMoneyPrintable(t *testing.T) {
-	if convertMoneyPrintable(137) != 1.37 {
-		t.FailNow()
+	inputToAnswer := map[int]float64{
+		137: 1.37,
+		100: 1,
+	}
+
+	for input, answer := range inputToAnswer {
+		if convertMoneyPrintable(input) != answer {
+			t.FailNow()
+		}
 	}
 }

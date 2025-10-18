@@ -10,6 +10,9 @@ import (
 
 func hashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil || len(bytes) == 0 {
+		return "", err
+	}
 	return unsafe.String(&bytes[0], len(bytes)), err // unsafe to prevent string copy
 }
 
