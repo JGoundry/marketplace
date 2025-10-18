@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -16,15 +17,19 @@ const TokenLength = 32
 type UserPurchase struct {
 	username    string
 	itemName    string
-	itemPrice   float64
+	itemPrice   int
 	purchasedAt time.Time
+}
+
+func (u UserPurchase) String() string {
+	return fmt.Sprintf("username: %v, item: %v, price: %v, time: %v", u.username, u.itemName, convertMoneyPrintable(u.itemPrice), u.purchasedAt.String())
 }
 
 type User struct {
 	userId       int
 	username     string
 	passwordHash string
-	balance      float64 // this aint good enough
+	balance      int
 	lastLogin    time.Time
 	createdAt    time.Time
 }
@@ -41,7 +46,11 @@ type Item struct {
 	itemId      int
 	name        string
 	description string
-	price       float64 // aint good enough
+	price       int
+}
+
+func (i Item) String() string {
+	return fmt.Sprintf("id: %v, name: %v, description: %v, price: %v", i.itemId, i.name, i.description, convertMoneyPrintable(i.price))
 }
 
 type Purchase struct {
@@ -55,14 +64,13 @@ type DB interface {
 	Items() ([]Item, error)
 	Purchases(userId int) ([]UserPurchase, error)
 	GetUserFromUsername(username string) (User, error)
-	GetUserFromId(userId int) (User, error)
 	GetItem(itemId int) (Item, error)
-	Register(username, passwordHash string, initialBalance float64) (User, error)
+	Register(username, passwordHash string) (User, error)
 	CreateSession(user User, ipAddr string) (Session, error)
 	GetSession(sessionId string) (Session, error)
-	LoggedIn(userId int)
-	Balance(userId int) (float64, error)
-	Deposit(userId int, amount float64) (float64, error)
+	UpdateLastLogin(userId int)
+	Balance(userId int) (int, error)
+	Deposit(userId int, amount int) (int, error)
 	Purchase(userId int, itemId int) error
 	Close() error
 }
@@ -113,7 +121,7 @@ func (s *SqlDB) Close() error {
 }
 
 func (s *SqlDB) Items() ([]Item, error) {
-	query := `SELECT * FROM items`
+	query := `SELECT item_id, name, description, CAST(price*100 AS INT) FROM items`
 	rows, err := s.db.Query(query)
 	if err != nil {
 		return nil, err
@@ -134,7 +142,7 @@ func (s *SqlDB) Items() ([]Item, error) {
 }
 
 func (s *SqlDB) Purchases(userId int) ([]UserPurchase, error) {
-	query := `SELECT users.username, items.name, items.price, purchases.purchased_at
+	query := `SELECT users.username, items.name, CAST(items.price*100 AS INT), purchases.purchased_at
 			  FROM users
 			  JOIN purchases ON users.user_id=purchases.user_id
 			  JOIN items ON purchases.item_id=items.item_id
@@ -207,19 +215,13 @@ func (s *SqlDB) CreateSession(user User, ipAddr string) (Session, error) {
 }
 
 func (s *SqlDB) GetUserFromUsername(username string) (User, error) {
-	query := `SELECT * FROM users WHERE username=$1`
+	query := `SELECT user_id, username, password_hash, CAST(balance*100 AS INT), last_login, created_at FROM users WHERE username=$1`
 	row := s.db.QueryRow(query, username)
 	return scanUser(row)
 }
 
-func (s *SqlDB) GetUserFromId(userId int) (User, error) {
-	query := `SELECT * FROM users WHERE user_id=$1`
-	row := s.db.QueryRow(query, userId)
-	return scanUser(row)
-}
-
 func (s *SqlDB) GetItem(itemId int) (Item, error) {
-	query := `SELECT * FROM items WHERE item_id=$1`
+	query := `SELECT item_id, name, description, CAST(price*100 AS INT) FROM items WHERE item_id=$1`
 	row := s.db.QueryRow(query, itemId)
 	return scanItem(row)
 }
@@ -230,18 +232,18 @@ func (s *SqlDB) GetSession(sessionId string) (Session, error) {
 	return scanSession(row)
 }
 
-func (s *SqlDB) Register(username, passwordHash string, initialBalance float64) (User, error) {
+func (s *SqlDB) Register(username, passwordHash string) (User, error) {
 	var user User
 	var err error
-	query := `INSERT INTO users (username, password_hash, balance)
-	 		  VALUES ($1, $2, $3) 
-			  RETURNING user_id, username, password_hash, balance, last_login, created_at`
-	row := s.db.QueryRow(query, username, passwordHash, initialBalance)
+	query := `INSERT INTO users (username, password_hash)
+	 		  VALUES ($1, $2) 
+			  RETURNING user_id, username, password_hash, CAST(balance*100 AS INT), last_login, created_at`
+	row := s.db.QueryRow(query, username, passwordHash)
 	err = row.Scan(&user.userId, &user.username, &user.passwordHash, &user.balance, &user.lastLogin, &user.createdAt)
 	return user, err
 }
 
-func (s *SqlDB) LoggedIn(userId int) {
+func (s *SqlDB) UpdateLastLogin(userId int) {
 	query := `UPDATE users SET last_login=NOW() WHERE user_id=$1`
 	s.db.Exec(query, userId)
 }
@@ -251,17 +253,17 @@ func (s *SqlDB) RemoveExpiredSessions() (sql.Result, error) {
 	return s.db.Exec(query)
 }
 
-func (s *SqlDB) Balance(userId int) (float64, error) {
-	var balance float64
-	query := `SELECT users.balance FROM users WHERE user_id=$1`
+func (s *SqlDB) Balance(userId int) (int, error) {
+	var balance int
+	query := `SELECT CAST(users.balance*100 AS INT) FROM users WHERE user_id=$1`
 	row := s.db.QueryRow(query, userId)
 	err := row.Scan(&balance)
 	return balance, err
 }
 
-func (s *SqlDB) Deposit(userId int, amount float64) (float64, error) {
-	var balance float64
-	query := `UPDATE users SET balance=balance+$1 WHERE users.user_id=$2 RETURNING users.balance`
+func (s *SqlDB) Deposit(userId int, amount int) (int, error) {
+	var balance int
+	query := `UPDATE users SET balance=balance+CAST($1 AS NUMERIC(10, 2))/100 WHERE users.user_id=$2 RETURNING CAST(users.balance*100 AS INT)`
 	row := s.db.QueryRow(query, amount, userId)
 	err := row.Scan(&balance)
 	return balance, err
@@ -285,8 +287,8 @@ func (s *SqlDB) Purchase(userId int, itemId int) (err error) {
 	}()
 
 	// Get item price
-	var price float64
-	getPriceQuery := `SELECT price FROM items WHERE items.item_id=$1 FOR UPDATE`
+	var price int
+	getPriceQuery := `SELECT CAST(price*100 AS INT) FROM items WHERE items.item_id=$1 FOR UPDATE`
 	row := tx.QueryRow(getPriceQuery, itemId)
 	err = row.Scan(&price)
 	if err != nil {
@@ -294,8 +296,8 @@ func (s *SqlDB) Purchase(userId int, itemId int) (err error) {
 	}
 
 	// Get user balance
-	var balance float64
-	getBalanceQuery := `SELECT balance FROM users WHERE users.user_id=$1 FOR UPDATE`
+	var balance int
+	getBalanceQuery := `SELECT CAST(balance*100 AS INT) FROM users WHERE users.user_id=$1 FOR UPDATE`
 	row = tx.QueryRow(getBalanceQuery, userId)
 	err = row.Scan(&balance)
 	if err != nil {
@@ -308,7 +310,7 @@ func (s *SqlDB) Purchase(userId int, itemId int) (err error) {
 	}
 
 	// Subtract price from balance
-	updateBalanceQuery := `UPDATE users SET balance=balance-$1 WHERE users.user_id=$2`
+	updateBalanceQuery := `UPDATE users SET balance=balance-CAST($1 AS NUMERIC(10,2))/100 WHERE users.user_id=$2`
 	_, err = tx.Exec(updateBalanceQuery, price, userId)
 	if err != nil {
 		return err

@@ -115,7 +115,7 @@ CREATE TABLE public.users (
     user_id integer NOT NULL,
     username character varying(24) NOT NULL,
     password_hash character(60) NOT NULL,
-    balance numeric(10,2) NOT NULL,
+    balance numeric(10,2) DEFAULT 0.00 NOT NULL,
     last_login timestamp with time zone DEFAULT now() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );

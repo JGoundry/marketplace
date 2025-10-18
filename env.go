@@ -44,13 +44,14 @@ func (env *Env) Balance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get balance
 	balance, err := env.db.Balance(userId)
 	if err != nil {
 		env.logger.Println(err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	fmt.Fprintln(w, "Balance:", balance)
+	fmt.Fprintln(w, "Balance:", convertMoneyPrintable(balance))
 }
 
 func (env *Env) Purchase(w http.ResponseWriter, r *http.Request) {
@@ -61,12 +62,14 @@ func (env *Env) Purchase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get item id
 	itemId, err := strconv.Atoi(r.FormValue("id"))
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
+	// Attempt purchase
 	if err := env.db.Purchase(userId, itemId); err != nil {
 		var statusCode int
 		switch err {
@@ -80,6 +83,8 @@ func (env *Env) Purchase(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(statusCode), statusCode)
 		return
 	}
+
+	fmt.Fprintln(w, "Success")
 }
 
 func (env *Env) Deposit(w http.ResponseWriter, r *http.Request) {
@@ -90,28 +95,37 @@ func (env *Env) Deposit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	depositAmount, err := strconv.ParseFloat(r.FormValue("amount"), 64)
+	var err error
+
+	// Parse deposit amount (conver to internal integer representation)
+	var depositAmountFloat float64
+	depositAmountFloat, err = strconv.ParseFloat(r.FormValue("amount"), 64)
+	depositAmount := int(depositAmountFloat * 100)
 	if err != nil || depositAmount <= 0 {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
+	// Deposit money
 	balance, err := env.db.Deposit(userId, depositAmount)
 	if err != nil {
 		env.logger.Println(err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	fmt.Fprintln(w, "New balance:", balance)
+	fmt.Fprintln(w, "New balance:", convertMoneyPrintable(balance))
 }
 
 func (env *Env) Items(w http.ResponseWriter, r *http.Request) {
+	// Get items
 	items, err := env.db.Items()
 	if err != nil {
 		env.logger.Println(err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
+	// Print items
 	for _, item := range items {
 		fmt.Fprintln(w, item)
 	}
@@ -125,12 +139,15 @@ func (env *Env) Purchases(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get purchases
 	purchases, err := env.db.Purchases(userId)
 	if err != nil {
 		env.logger.Println(err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
+	// Print purchases
 	for _, purchase := range purchases {
 		fmt.Fprintln(w, purchase)
 	}
@@ -160,7 +177,7 @@ func (env *Env) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Register account
-	user, err := env.db.Register(username, passwordHash, 0)
+	user, err := env.db.Register(username, passwordHash)
 	if err != nil {
 		env.logger.Println(err.Error())
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -183,7 +200,6 @@ func (env *Env) Login(w http.ResponseWriter, r *http.Request) {
 	// Get user
 	user, err := env.db.GetUserFromUsername(username)
 	if err != nil {
-		env.logger.Println(err.Error())
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
@@ -210,8 +226,8 @@ func (env *Env) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Send session cookies
 	expiresAt := time.Now().Add(time.Hour * 24)
-
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session_id",
 		Value:    session.sessionId,
@@ -220,7 +236,6 @@ func (env *Env) Login(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		// Secure: true,
 	})
-
 	http.SetCookie(w, &http.Cookie{
 		Name:     "csrf_token",
 		Value:    session.csrfToken,
@@ -231,7 +246,9 @@ func (env *Env) Login(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Update last login
-	env.db.LoggedIn(session.userId)
+	env.db.UpdateLastLogin(session.userId)
+
+	fmt.Fprintln(w, "Success")
 }
 
 func (env *Env) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -256,8 +273,7 @@ func (env *Env) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// Update last login
-		env.db.LoggedIn(session.userId)
+		env.db.UpdateLastLogin(session.userId)
 
 		// Add userId to context
 		*r = *r.WithContext(context.WithValue(r.Context(), CtxUserId, session.userId))
@@ -280,8 +296,6 @@ func (env *Env) PanicMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if r := recover(); r != nil {
-				// buf := make([]byte, 0, 4096) // 4 KiB
-				// n := runtime.Stack(buf, false)
 				env.logger.Printf("Recovered from panic: %v\n", r)
 				debug.PrintStack()
 			}

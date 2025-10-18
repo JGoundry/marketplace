@@ -22,3 +22,7 @@ func generateToken(length int) (string, error) {
 	_, err := rand.Read(bytes)
 	return base64.URLEncoding.EncodeToString(bytes), err
 }
+
+func convertMoneyPrintable(money int) float64 {
+	return float64(money) / float64(100.0)
+}
