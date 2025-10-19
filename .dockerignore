@@ -69,3 +69,7 @@ cookie*
 
 # Include all go files
 !*.go
+
+# Ignore git
+.git
+.gitignore
