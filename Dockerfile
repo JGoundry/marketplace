@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:alpine AS builder
+FROM golang:1.25.3-alpine3.22 AS builder
 
 # Set working dir
 WORKDIR /app
@@ -15,7 +15,7 @@ COPY *.go ./
 RUN CGO_ENABLED=0 GOOS=linux go build -o /marketplace
 
 # Runtime stage
-FROM alpine
+FROM alpine:3.22.2
 
 # Copy only the compiled binary from the 'builder' stage
 COPY --from=builder /marketplace .
