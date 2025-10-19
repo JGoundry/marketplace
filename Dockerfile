@@ -1,4 +1,5 @@
-FROM golang:alpine
+# Build stage
+FROM golang:alpine AS builder
 
 # Set working dir
 WORKDIR /app
@@ -12,6 +13,12 @@ COPY *.go ./
 
 # Build with static linking for linux
 RUN CGO_ENABLED=0 GOOS=linux go build -o /marketplace
+
+# Runtime stage
+FROM alpine
+
+# Copy only the compiled binary from the 'builder' stage
+COPY --from=builder /marketplace .
 
 # Ports
 EXPOSE 3000
