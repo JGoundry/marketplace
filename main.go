@@ -18,6 +18,7 @@ func main() {
 	}
 	defer env.db.Close()
 
+	http.HandleFunc("GET   /health", func(w http.ResponseWriter, r *http.Request) {})
 	http.HandleFunc("GET   /api/items", env.PanicMiddleware(env.LogMiddleware(env.AuthMiddleware(env.Items))))
 	http.HandleFunc("GET   /api/purchases", env.PanicMiddleware(env.LogMiddleware(env.AuthMiddleware(env.Purchases))))
 	http.HandleFunc("GET   /api/balance", env.PanicMiddleware(env.LogMiddleware(env.AuthMiddleware(env.Balance))))
